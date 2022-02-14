@@ -3,6 +3,105 @@ from torch import nn, optim
 import numpy as np
 
 
+class contracting_REN(nn.Module):
+    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh(), x0 = None):
+        super(contracting_REN, self).__init__()
+        assert n_state > 0
+        self.n_in       = n_in
+        self.n_state    = n_state
+        self.n_out      = n_out
+        self.n_neurons  = n_neurons
+        self.activation = activationfunction
+        # Use the convex parametrization of Revay (2021) - Recurrent Equilibrium Networks, Flexible Dynamic Models with Guaranteed Stability and Robustness
+        # Parameters: (see sec. V.A)
+        self.X          = nn.Parameter(data=torch.rand((2*self.n_state+self.n_neurons,2*self.n_state+self.n_neurons)))
+        self.calB_2     = nn.Parameter(data=torch.rand((self.n_state, self.n_in)))
+        self.C_2        = nn.Parameter(data=torch.rand((self.n_out, self.n_state)))
+        self.calD_12    = nn.Parameter(data=torch.rand((self.n_neurons, self.n_in)))
+        self.D_21       = nn.Parameter(data=torch.rand((self.n_out, self.n_neurons)))
+        self.D_22       = nn.Parameter(data=torch.rand((self.n_out, self.n_in)))
+        self.Y_1        = nn.Parameter(data=torch.rand((self.n_state, self.n_state)))
+        self.epsilon    = 1e-4
+        self.biasvec    = nn.Parameter(data=torch.rand((self.n_state+self.n_neurons+self.n_in)))
+        self.x0         = self.init_hidden() if x0 is None else x0
+
+    def calculate_system_matrices(self):
+        H_      = torch.einsum('ij,ik->jk', self.X, self.X) + self.epsilon * torch.eye(2 * self.n_state + self.n_neurons)
+        F_      =  H_[(self.n_state + self.n_neurons):, :self.n_state]
+        calB_1  =  H_[(self.n_state + self.n_neurons):, self.n_state:(self.n_state + self.n_neurons)]
+        calP    =  H_[(self.n_state + self.n_neurons):, (self.n_state + self.n_neurons):]
+        calC_1  = -H_[self.n_state:(self.n_state + self.n_neurons), :self.n_state]
+        H11     =  H_[:self.n_state, :self.n_state]
+        E_      =  0.5 * (H11 + calP + self.Y_1)
+        H22     =  H_[self.n_state:(self.n_state + self.n_neurons), self.n_state:(self.n_state + self.n_neurons)]
+        Lambda  =  0.5 * H22.diag() # Vector!
+        calD_11 = -H22.tril(diagonal=-1)
+        return E_, F_, calB_1, self.calB_2, Lambda, calC_1, calD_11, self.calD_12, self.C_2, self.D_21, self.D_22
+
+    def calculate_w(self, x, u, calC_1, calD_11, calD_12, Lambda):
+        # in:         | out:
+        # - x (Nd, Nx)
+        # - u (Nd, Nu)
+
+        Nd = x.shape[0]
+        # the following is of shape: (Nd, N_neurons)
+        C1x_p_D12u_p_b = torch.einsum('ik, bk->bi', calC_1, x) + torch.einsum('ik, bk->bi', calD_12, u) + self.biasvec[self.n_state:(self.n_state+self.n_neurons)]
+        wvec = torch.zeros((Nd,self.n_neurons))
+        for ii in range(self.n_neurons):
+            vii = (1/Lambda[ii])*(C1x_p_D12u_p_b[:,ii]+torch.einsum('ik, bk->bi', calD_11[ii,:], wvec))
+            wvec[:,ii] = self.activation(vii)
+        return wvec #(Nd, N_neurons)
+
+    def forward(self,u, hidden_state):
+        # in:         | out:
+        # - x (Nd, Nx)
+        # - u (Nd, Nu)
+
+        # partition the bias vector:
+        bx = self.biasvec[:self.n_state]
+        by = self.biasvec[(self.n_state+self.n_neurons):]
+        # calculate system matrices:
+        E, Fx, B1, B2, Lambda, C1, D11, D12, C2, D21, D22 = self.calculate_system_matrices()
+        Einv = torch.inverse(E)
+        # calculate w
+        w = self.calculate_w(hidden_state, u, C1, D11, D12, Lambda) #(Nd, N_neurons)
+        # calculate hidden state
+        Ehidden = torch.einsum('ik, bk->bi', Fx, hidden_state) + torch.einsum('ik, bk->bi', B1, w) + \
+            torch.einsum('ik, bk->bi', B2, u) + bx
+        hidden  = torch.einsum('ik, bk->bi', Einv, Ehidden)
+        # Calculate network output
+        y = torch.einsum('ik, bk->bi', C2, hidden_state) + torch.einsum('ik, bk->bi', D21, w) + \
+            torch.einsum('ik, bk->bi', D22, u) + by
+        return y, hidden
+
+    def init_hidden(self):
+        return torch.zeros(self.n_state)
+
+    #def retrieve_lfr(self):
+
+
+        # """ EXAMPLE from interwebs (from scratch basically) https://jaketae.github.io/study/pytorch-rnn/#simple-rnn
+        #     class MyRNN(nn.Module):
+        #         def __init__(self, input_size, hidden_size, output_size):
+        #             super(MyRNN, self).__init__()
+        #             self.hidden_size = hidden_size
+        #             self.in2hidden = nn.Linear(input_size + hidden_size, hidden_size)
+        #             self.in2output = nn.Linear(input_size + hidden_size, output_size)
+        #
+        #         def forward(self, x, hidden_state):
+        #             combined = torch.cat((x, hidden_state), 1)
+        #             hidden = torch.sigmoid(self.in2hidden(combined))
+        #             output = self.in2output(combined)
+        #             return output, hidden
+        #
+        #         def init_hidden(self):
+        #             return nn.init.kaiming_uniform_(torch.empty(1, self.hidden_size))
+        # """
+
+class RNN:
+    pass
+
+
 class feed_forward_nn(nn.Module): #a simple MLP
     def __init__(self,n_in=6, n_out=5, n_nodes_per_layer=64, n_hidden_layers=2, activation=nn.Tanh):
         super(feed_forward_nn,self).__init__()
