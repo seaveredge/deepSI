@@ -44,15 +44,31 @@ class contracting_REN(nn.Module):
         # - u (Nd, Nu)
 
         Nd = x.shape[0]
+        # if Nd>1:
+        #     print('now')
         # the following is of shape: (Nd, N_neurons)
         C1x_p_D12u_p_b = torch.einsum('ik, bk->bi', calC_1, x) + torch.einsum('ik, bk->bi', calD_12, u) + self.biasvec[self.n_state:(self.n_state+self.n_neurons)]
-        wvec = torch.zeros((Nd,self.n_neurons))
-        for ii in range(self.n_neurons):
-            vii = (1/Lambda[ii])*(C1x_p_D12u_p_b[:,ii]+torch.einsum('ik, bk->bi', calD_11[ii,:], wvec))
-            wvec[:,ii] = self.activation(vii)
-        return wvec #(Nd, N_neurons)
+        viis = [(1/Lambda[0])*C1x_p_D12u_p_b[:,0]]
+        for i in range(1, self.n_neurons):
+            w = self.activation(torch.stack(viis, dim=1))
+            viis.append((1/Lambda[i])*(C1x_p_D12u_p_b[:,i]+
+                                       torch.einsum('j,bj->b',calD_11[i,:i],w)))
+            # vii = (1/Lambda[ii])*(C1x_p_D12u_p_b[:,ii].reshape((-1,1))+torch.einsum('ik, bk->bi', calD_11[ii,:ii].reshape((1,-1)), wvec[:,:ii]))
+            #vii = (1/Lambda[ii])*(C1x_p_D12u_p_b[:,ii]+torch.einsum('k, bk->b', calD_11[ii,:ii], wvec[:,:ii]))
+            #wvec[:,ii] = self.activation(vii)#[:,0]
+            # wvec.append(self.activation(vii))
+        vii = torch.stack(viis,dim=1)
+        return self.activation(vii) #(Nd, N_neurons)
+        # wvec = torch.zeros((Nd, self.n_neurons))
+        # # wvec = torch.zeros(Nd)
+        # for ii in range(self.n_neurons):
+        #     # vii = (1/Lambda[ii])*(C1x_p_D12u_p_b[:,ii].reshape((-1,1))+torch.einsum('ik, bk->bi', calD_11[ii,:ii].reshape((1,-1)), wvec[:,:ii]))
+        #     vii = (1 / Lambda[ii]) * (C1x_p_D12u_p_b[:, ii] + torch.einsum('k, bk->b', calD_11[ii, :ii], wvec[:, :ii]))
+        #     wvec[:, ii] = self.activation(vii)  # [:,0]
+        #     # wvec.append(self.activation(vii))
+        # return wvec  # (Nd, N_neurons)
 
-    def forward(self,u, hidden_state):
+    def forward(self, hidden_state, u):
         # in:         | out:
         # - x (Nd, Nx)
         # - u (Nd, Nu)
