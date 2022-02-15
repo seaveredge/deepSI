@@ -42,10 +42,6 @@ class contracting_REN(nn.Module):
         # in:         | out:
         # - x (Nd, Nx)
         # - u (Nd, Nu)
-
-        Nd = x.shape[0]
-        # if Nd>1:
-        #     print('now')
         # the following is of shape: (Nd, N_neurons)
         C1x_p_D12u_p_b = torch.einsum('ik, bk->bi', calC_1, x) + torch.einsum('ik, bk->bi', calD_12, u) + self.biasvec[self.n_state:(self.n_state+self.n_neurons)]
         viis = [(1/Lambda[0])*C1x_p_D12u_p_b[:,0]]
@@ -53,26 +49,14 @@ class contracting_REN(nn.Module):
             w = self.activation(torch.stack(viis, dim=1))
             viis.append((1/Lambda[i])*(C1x_p_D12u_p_b[:,i]+
                                        torch.einsum('j,bj->b',calD_11[i,:i],w)))
-            # vii = (1/Lambda[ii])*(C1x_p_D12u_p_b[:,ii].reshape((-1,1))+torch.einsum('ik, bk->bi', calD_11[ii,:ii].reshape((1,-1)), wvec[:,:ii]))
-            #vii = (1/Lambda[ii])*(C1x_p_D12u_p_b[:,ii]+torch.einsum('k, bk->b', calD_11[ii,:ii], wvec[:,:ii]))
-            #wvec[:,ii] = self.activation(vii)#[:,0]
-            # wvec.append(self.activation(vii))
         vii = torch.stack(viis,dim=1)
         return self.activation(vii) #(Nd, N_neurons)
-        # wvec = torch.zeros((Nd, self.n_neurons))
-        # # wvec = torch.zeros(Nd)
-        # for ii in range(self.n_neurons):
-        #     # vii = (1/Lambda[ii])*(C1x_p_D12u_p_b[:,ii].reshape((-1,1))+torch.einsum('ik, bk->bi', calD_11[ii,:ii].reshape((1,-1)), wvec[:,:ii]))
-        #     vii = (1 / Lambda[ii]) * (C1x_p_D12u_p_b[:, ii] + torch.einsum('k, bk->b', calD_11[ii, :ii], wvec[:, :ii]))
-        #     wvec[:, ii] = self.activation(vii)  # [:,0]
-        #     # wvec.append(self.activation(vii))
-        # return wvec  # (Nd, N_neurons)
+
 
     def forward(self, hidden_state, u):
         # in:         | out:
-        # - x (Nd, Nx)
+        # - x (Nd, Nxh)
         # - u (Nd, Nu)
-
         # partition the bias vector:
         bx = self.biasvec[:self.n_state]
         by = self.biasvec[(self.n_state+self.n_neurons):]
@@ -88,7 +72,7 @@ class contracting_REN(nn.Module):
         # Calculate network output
         y = torch.einsum('ik, bk->bi', C2, hidden_state) + torch.einsum('ik, bk->bi', D21, w) + \
             torch.einsum('ik, bk->bi', D22, u) + by
-        return y, hidden
+        return hidden, y
 
     def init_hidden(self):
         return torch.zeros(self.n_state)
