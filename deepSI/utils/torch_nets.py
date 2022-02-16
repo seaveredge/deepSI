@@ -4,14 +4,14 @@ import numpy as np
 
 
 class contracting_REN(nn.Module):
-    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh(), x0 = None):
+    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh, x0 = None):
         super(contracting_REN, self).__init__()
         assert n_state > 0
         self.n_in       = n_in
         self.n_state    = n_state
         self.n_out      = n_out
         self.n_neurons  = n_neurons
-        self.activation = activationfunction
+        self.activation = activationfunction()
         # Use the convex parametrization of Revay (2021) - Recurrent Equilibrium Networks, Flexible Dynamic Models with Guaranteed Stability and Robustness
         # Parameters: (see sec. V.A)
         self.X          = nn.Parameter(data=torch.rand((2*self.n_state+self.n_neurons,2*self.n_state+self.n_neurons)))
