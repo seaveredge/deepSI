@@ -10,3 +10,5 @@ from deepSI.system_data.system_data import System_data, System_data_list, System
 from deepSI.systems.system import System, System_ss, System_io, load_system, System_deriv
 import deepSI.datasets as datasets
 import deepSI.exp_design
+
+import deepSI.model_augmentation

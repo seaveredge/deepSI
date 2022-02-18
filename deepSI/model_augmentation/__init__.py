@@ -1,0 +1,2 @@
+import deepSI.model_augmentation.lpvsystem
+import deepSI.model_augmentation.augmentationstructures
