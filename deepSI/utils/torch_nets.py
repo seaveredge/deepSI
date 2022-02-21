@@ -101,7 +101,7 @@ class contracting_REN(nn.Module):
 
 
 class LFR_ANN(nn.Module):
-    def __init__(self, Ts, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh, x0 = None, initial_gain=1e-3):
+    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh, x0 = None, initial_gain=1e-3):
         super(LFR_ANN, self).__init__()
         assert n_state > 0
         self.n_in = n_in
@@ -110,14 +110,14 @@ class LFR_ANN(nn.Module):
         self.n_neurons = n_neurons
         self.activation = activationfunction()
         # LFR-ANN matrices for the LTI part. The feedthrough between w and z is assumed to be zero
-        self.A = nn.Parameter(data=torch.rand((self.n_state, self.n_state)))
-        self.Bu = nn.Parameter(data=torch.rand((self.n_state, self.n_in)))
-        self.Bw = nn.Parameter(data=torch.rand((self.n_state, self.n_neurons)))
-        self.Cy = nn.Parameter(data=torch.rand((self.n_out, self.n_state)))
-        self.Cz = nn.Parameter(data=torch.rand((self.n_neurons, self.n_state)))
-        self.Dyu = nn.Parameter(data=torch.rand((self.n_out, self.n_in)))
-        self.Dyw = nn.Parameter(data=torch.rand((self.n_out, self.n_neurons)))
-        self.Dzu = nn.Parameter(data=torch.rand((self.n_neurons, self.n_in)))
+        self.A = nn.Parameter(data=initial_gain * torch.rand((self.n_state, self.n_state)))
+        self.Bu = nn.Parameter(data=initial_gain * torch.rand((self.n_state, self.n_in)))
+        self.Bw = nn.Parameter(data=initial_gain * torch.rand((self.n_state, self.n_neurons)))
+        self.Cy = nn.Parameter(data=initial_gain * torch.rand((self.n_out, self.n_state)))
+        self.Cz = nn.Parameter(data=initial_gain * torch.rand((self.n_neurons, self.n_state)))
+        self.Dyu = nn.Parameter(data=initial_gain * torch.rand((self.n_out, self.n_in)))
+        self.Dyw = nn.Parameter(data=initial_gain * torch.rand((self.n_out, self.n_neurons)))
+        self.Dzu = nn.Parameter(data=initial_gain * torch.rand((self.n_neurons, self.n_in)))
 
     def forward(self, hidden_state, u):
         # in:         | out:
