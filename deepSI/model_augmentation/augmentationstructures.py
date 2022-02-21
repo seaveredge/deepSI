@@ -115,7 +115,12 @@ class SSE_StaticAugmentation:
         # compute network contribution
         z = self.compute_z(x, u)
         w = self.net(z)
-        x_plus = self.sys.f(x,u) + self.compute_xnet_contribution(w)
+        if self.sys.Ts is not None:
+            x_plus = self.sys.f(x,u) + self.compute_xnet_contribution(w)
+        else:
+            f = lambda x_in, u_in: self.sys.f(x_in, u_in) + self.compute_xnet_contribution(
+                                                            self.net(self.compute_z(x_in, u_in)))
+            x_plus = RK4_step(f, x, u, self.sys.Ts)
         y_k    = self.sys.h(x,u) + self.compute_ynet_contribution(w)
         return x_plus, y_k
 
