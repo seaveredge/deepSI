@@ -1,6 +1,7 @@
 import torch
 from torch import nn, optim
 import numpy as np
+from deepSI.model_augmentation.lpvsystem import lti_system
 from deepSI.model_augmentation.utils import RK4_step
 
 
@@ -53,7 +54,6 @@ class contracting_REN(nn.Module):
         vii = torch.stack(viis,dim=1)
         return self.activation(vii) #(Nd, N_neurons)
 
-
     def forward(self, hidden_state, u):
         # in:         | out:
         # - x (Nd, Nxh)
@@ -99,8 +99,50 @@ class contracting_REN(nn.Module):
         #             return nn.init.kaiming_uniform_(torch.empty(1, self.hidden_size))
         # """
 
-class RNN:
-    pass
+
+class LFR_ANN(nn.Module):
+    def __init__(self, Ts, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh, x0 = None, initial_gain=1e-3):
+        super(LFR_ANN, self).__init__()
+        assert n_state > 0
+        self.n_in = n_in
+        self.n_state = n_state
+        self.n_out = n_out
+        self.n_neurons = n_neurons
+        self.activation = activationfunction()
+        # LFR-ANN matrices for the LTI part. The feedthrough between w and z is assumed to be zero
+        self.A = nn.Parameter(data=torch.rand((self.n_state, self.n_state)))
+        self.Bu = nn.Parameter(data=torch.rand((self.n_state, self.n_in)))
+        self.Bw = nn.Parameter(data=torch.rand((self.n_state, self.n_neurons)))
+        self.Cy = nn.Parameter(data=torch.rand((self.n_out, self.n_state)))
+        self.Cz = nn.Parameter(data=torch.rand((self.n_neurons, self.n_state)))
+        self.Dyu = nn.Parameter(data=torch.rand((self.n_out, self.n_in)))
+        self.Dyw = nn.Parameter(data=torch.rand((self.n_out, self.n_neurons)))
+        self.Dzu = nn.Parameter(data=torch.rand((self.n_neurons, self.n_in)))
+
+    def forward(self, hidden_state, u):
+        # in:         | out:
+        # - x (Nd, Nxh)
+        # - u (Nd, Nu)
+        z = torch.einsum('ij, bj->bi',self.Cz, hidden_state) + torch.einsum('ij, bj->bi',self.Dzu, u)
+        w = self.activation(z)
+        xp = torch.einsum('ij, bj->bi', self.A, hidden_state) + torch.einsum('ij, bj->bi', self.Bu, u) + torch.einsum('ij, bj->bi', self.Bw, w)
+        y = torch.einsum('ij, bj->bi', self.Cy, hidden_state) + torch.einsum('ij, bj->bi', self.Dyu, u) + torch.einsum('ij, bj->bi', self.Dyw, w)
+        return xp, y
+
+    def get_LTI_sys(self, Ts=-1):
+        A = self.A.detach()
+        Bu = self.Bu.detach()
+        Bw = self.Bw.detach()
+        Cy = self.Cy.detach()
+        Cz = self.Cz.detach()
+        Dyu = self.Dyu.detach()
+        Dyw = self.Dyw.detach()
+        Dzu = self.Dzu.detach()
+        Dzw = torch.zeros((self.n_neurons,self.n_neurons))
+        Dz = torch.cat((Dzu, Dzw), dim=1)
+        Dy = torch.cat((Dyu, Dyw), dim=1)
+        return lti_system(A=A, B=torch.cat((Bu, Bw),dim=1), C=torch.cat((Cy, Cz)), D=torch.cat((Dz,Dy)), Ts=Ts), self.n_neurons
+
 
 
 class feed_forward_nn(nn.Module): #a simple MLP
