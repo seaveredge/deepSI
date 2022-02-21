@@ -4,23 +4,10 @@ import torch
 from torch import nn
 from scipy.io import loadmat
 from scipy.interpolate import interpn
+from deepSI.model_augmentation.utils import RK4_step
 
 
-# Generic functions
-def to_torch_tensor(A):
-    if torch.is_tensor(A):
-        return A
-    else:
-        return torch.tensor(A,dtype=torch.float)
-
-def RK4_step(f, x, u, h): # Functions of the form f(x,u). See other scripts for time-varying cases
-    # one step of runge-kutta integration. u is zero-order-hold
-    k1 = h * f(x, u)
-    k2 = h * f(x + k1 / 2, u)
-    k3 = h * f(x + k2 / 2, u)
-    k4 = h * f(x + k3, u)
-    return x + 1 / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-
+# Apply experiment wrapper
 def hidden_apply_experiment(sys, data, x0):
     # Todo: What if we have data with non-equidistant time-steps
     if sys.Ts is None and data.dt is None: raise ValueError('Sample time of data not specified')

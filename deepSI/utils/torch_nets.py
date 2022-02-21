@@ -1,6 +1,7 @@
 import torch
 from torch import nn, optim
 import numpy as np
+from deepSI.model_augmentation.utils import RK4_step
 
 
 class contracting_REN(nn.Module):

@@ -3,25 +3,7 @@ import numpy as np
 import torch
 from torch import nn
 from deepSI import model_augmentation
-
-
-# Allowed systems:
-def verifySystemType(sys):
-    if   type(sys).__base__ is model_augmentation.lpvsystem.lpv_model_grid: return
-    elif type(sys).__base__ is model_augmentation.lpvsystem.lpv_model_aff:  return
-    elif type(sys).__base__ is model_augmentation.lpvsystem.lti_system:     return
-    else: raise ValueError("Systems must be of the types defined in 'model_augmentation.lpvsystem'")
-
-def verifyNetType(net,nettype):
-    if nettype in 'static':
-        if type(net) is not deepSI.utils.contracting_REN: return
-        elif type(net) is not deepSI.utils.RNN: return
-        else: raise ValueError("Static network required...")
-    elif nettype in 'dynamic':
-        if type(net) is deepSI.utils.contracting_REN: return
-        # elif type(net) is deepSI.utils.RNN: return
-        else: raise ValueError("Dynamic network required...")
-    else: raise ValueError('Unknown net type, only dynamic or static supported')
+from deepSI.model_augmentation.utils import verifySystemType, verifyNetType, RK4_step
 
 
 ###################################################################################
@@ -131,11 +113,13 @@ class SSE_StaticAugmentation:
         #  - x (Nd, Nx) |  - x+ (Nd, Nx)
         #  - u (Nd, Nu) |  - y  (Nd, Ny)
         # compute network contribution
-        z = self.compute_z(x,u)
+        z = self.compute_z(x, u)
         w = self.net(z)
         x_plus = self.sys.f(x,u) + self.compute_xnet_contribution(w)
         y_k    = self.sys.h(x,u) + self.compute_ynet_contribution(w)
         return x_plus, y_k
+
+
 
 
 ###################################################################################
