@@ -47,12 +47,12 @@ class contracting_REN(nn.Module):
         # the following is of shape: (Nd, N_neurons)
         C1x_p_D12u_p_b = torch.einsum('ik, bk->bi', calC_1, x) + torch.einsum('ik, bk->bi', calD_12, u) + self.biasvec[self.n_state:(self.n_state+self.n_neurons)]
         viis = [(1/Lambda[0])*C1x_p_D12u_p_b[:,0]]
+        w = torch.empty(x.shape[0], 0)
         for i in range(1, self.n_neurons):
-            w = self.activation(torch.stack(viis, dim=1))
+            w = torch.cat((w,self.activation(torch.reshape(viis[-1],(-1,1)))), dim=1)
             viis.append((1/Lambda[i])*(C1x_p_D12u_p_b[:,i]+
                                        torch.einsum('j,bj->b',calD_11[i,:i],w)))
-        vii = torch.stack(viis,dim=1)
-        return self.activation(vii) #(Nd, N_neurons)
+        return self.activation(torch.stack(viis,dim=1)) #(Nd, N_neurons)
 
     def forward(self, hidden_state, u):
         # in:         | out:
