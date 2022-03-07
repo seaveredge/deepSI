@@ -179,10 +179,10 @@ class lpv_model_aff:
 
 class lti_system:
     def __init__(self, A, B, C, D, Ts=-1):
-        self.A = A  # shape: (Nx, Nx)
-        self.B = B  # shape: (Nx, Nu)
-        self.C = C  # shape: (Ny, Nx)
-        self.D = D  # shape: (Ny, Nu)
+        self.A = A if torch.is_tensor(A) else torch.tensor(A, dtype=torch.float)  # shape: (Nx, Nx)
+        self.B = B if torch.is_tensor(B) else torch.tensor(B, dtype=torch.float)  # shape: (Nx, Nu)
+        self.C = C if torch.is_tensor(C) else torch.tensor(C, dtype=torch.float)  # shape: (Ny, Nx)
+        self.D = D if torch.is_tensor(D) else torch.tensor(D, dtype=torch.float)  # shape: (Ny, Nu)
         self.Nx = self.A.shape[0]
         self.Nu = self.B.shape[1]
         self.Ny = self.C.shape[0]
@@ -192,16 +192,18 @@ class lti_system:
         # in:           | out:
         #  - x (Nd, Nx) |  - x+ (Nd, Nx)
         #  - u (Nd, Nu) |
-        Ax = torch.einsum('ik, bk->bi', self.A, x) # (Nx, Nx)*(Nd, Nx)->(Nd, Nx)
-        Bu = torch.einsum('ik, bk->bi', self.B, u)   # (Nd, Nx, Nu)*(Nd, Nu)->(Nd, Nx)
+        einsumequation = 'ik, bk->bi' if x.ndim > 1 else 'ik, k->i'
+        Ax = torch.einsum(einsumequation, self.A, x) # (Nx, Nx)*(Nd, Nx)->(Nd, Nx)
+        Bu = torch.einsum(einsumequation, self.B, u)   # (Nd, Nx, Nu)*(Nd, Nu)->(Nd, Nx)
         return Ax + Bu
 
     def h(self,x, u):
         # in:           | out:
         #  - x (Nd, Nx) |  - y (Nd, Ny)
         #  - u (Nd, Nu) |
-        Cx = torch.einsum('ik, bk->bi', self.C, x)  # (Nd, Nx, Nx)*(Nd, Nx)->(Nd, Nx)
-        Du = torch.einsum('ik, bk->bi', self.D, u)  # (Nd, Nx, Nu)*(Nd, Nu)->(Nd, Nx)
+        einsumequation = 'ik, bk->bi' if x.ndim > 1 else 'ik, k->i'
+        Cx = torch.einsum(einsumequation, self.C, x)  # (Nd, Nx, Nx)*(Nd, Nx)->(Nd, Nx)
+        Du = torch.einsum(einsumequation, self.D, u)  # (Nd, Nx, Nu)*(Nd, Nu)->(Nd, Nx)
         return Cx + Du
 
     def apply_experiment(self, data, x0=None):
