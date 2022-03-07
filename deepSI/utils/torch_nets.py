@@ -3,10 +3,12 @@ from torch import nn, optim
 import numpy as np
 from deepSI.model_augmentation.lpvsystem import lti_system
 from deepSI.model_augmentation.utils import RK4_step
+from deepSI.model_augmentation.lpvsystem import lti_system
+from deepSI.model_augmentation.utils import RK4_step
 
-
+''' Contracting REN -- DT: '''
 class contracting_REN(nn.Module):
-    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh, x0 = None):
+    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh):
         super(contracting_REN, self).__init__()
         assert n_state > 0
         self.n_in       = n_in
@@ -25,7 +27,6 @@ class contracting_REN(nn.Module):
         self.Y_1        = nn.Parameter(data=torch.rand((self.n_state, self.n_state)))
         self.epsilon    = 1e-4
         self.biasvec    = nn.Parameter(data=torch.rand((self.n_state+self.n_neurons+self.n_in)))
-        self.x0         = self.init_hidden() if x0 is None else x0
 
     def calculate_system_matrices(self):
         H_      = torch.einsum('ij,ik->jk', self.X, self.X) + self.epsilon * torch.eye(2 * self.n_state + self.n_neurons)
@@ -82,30 +83,10 @@ class contracting_REN(nn.Module):
     def init_hidden(self):
         return torch.zeros(self.n_state)
 
-    #def retrieve_lfr(self):
 
-
-        # """ EXAMPLE from interwebs (from scratch basically) https://jaketae.github.io/study/pytorch-rnn/#simple-rnn
-        #     class MyRNN(nn.Module):
-        #         def __init__(self, input_size, hidden_size, output_size):
-        #             super(MyRNN, self).__init__()
-        #             self.hidden_size = hidden_size
-        #             self.in2hidden = nn.Linear(input_size + hidden_size, hidden_size)
-        #             self.in2output = nn.Linear(input_size + hidden_size, output_size)
-        #
-        #         def forward(self, x, hidden_state):
-        #             combined = torch.cat((x, hidden_state), 1)
-        #             hidden = torch.sigmoid(self.in2hidden(combined))
-        #             output = self.in2output(combined)
-        #             return output, hidden
-        #
-        #         def init_hidden(self):
-        #             return nn.init.kaiming_uniform_(torch.empty(1, self.hidden_size))
-        # """
-
-
+''' LFR-ANN -- DT/CT: '''
 class LFR_ANN(nn.Module):
-    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh, x0 = None, initial_gain=1e-3):
+    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh, initial_gain=1e-3):
         super(LFR_ANN, self).__init__()
         assert n_state > 0
         self.n_in = n_in
