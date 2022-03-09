@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torch import nn
 from deepSI import model_augmentation
-from deepSI.model_augmentation.utils import verifySystemType, verifyNetType, RK4_step
+from deepSI.model_augmentation.utils import verifySystemType, verifyNetType, RK4_step, assign_param
 
 
 ###################################################################################
@@ -45,7 +45,26 @@ class default_output_net(nn.Module):
         #  - u (Nd, Nu + np) |
         return self.MApar.f_h(x,u)[1] # Select h(x,u) function
 
-def get_augmented_fitsys(augmentation_params, y_lag_encoder, u_lag_encoder, e_net=None, f_net=None, h_net=None):
+def get_augmented_fitsys(augmentation_structure, known_system, wnet, aug_kwargs={}, e_net=default_encoder_net, y_lag_encoder=None, u_lag_encoder=None, enet_kwargs={}):
+    if augmentation_structure is model_augmentation.augmentationstructures.SSE_DynamicAugmentation:
+        # Learn the state of the augmented model as well
+        nx_system = known_system.Nx
+        nx_hidden = wnet.n_state
+        nx_encoder = nx_system + nx_hidden
+    elif augmentation_structure is model_augmentation.augmentationstructures.SSE_StaticAugmentation:
+        nx_encoder = known_system.Nx
+    else: raise ValueError("'augmentation_structure' should be either " +
+                           "'SSE_DynamicAugmentation' or 'SSE_StaticAugmentation'")
+    if y_lag_encoder is None: y_lag_encoder = nx_encoder + 1
+    if u_lag_encoder is None: u_lag_encoder = nx_encoder + 1
+    if e_net is None: raise ValueError("Encoder net (e_net) must be defined")
+    return deepSI.fit_systems.SS_encoder_general_hf(feedthrough=True, nx=nx_encoder, na=y_lag_encoder, nb=u_lag_encoder,
+                                                    e_net=e_net, e_net_kwargs=dict(**enet_kwargs), hf_net=augmentation_structure,
+                                                    hf_net_kwargs=dict(known_system=known_system, wnet=wnet, **aug_kwargs))
+
+def get_CT_augmented_fitsys(augmentation_params, y_lag_encoder, u_lag_encoder, e_net=None, f_net=None, h_net=None):
+    raise NotImplementedError('Not verified or tested or whatevered yet...')
+    # Input checks:
     if type(augmentation_params) is model_augmentation.augmentationstructures.SSE_DynamicAugmentation:
         # Learn the state of the augmented model as well
         nx_system = augmentation_params.Nx
@@ -55,11 +74,17 @@ def get_augmented_fitsys(augmentation_params, y_lag_encoder, u_lag_encoder, e_ne
         nx_encoder = augmentation_params.Nx
     else: raise ValueError("'augmentation_params' should be of type " +
                            "'SSE_DynamicAugmentation' or 'SSE_StaticAugmentation'")
+    if augmentation_params.sys.Ts is None: raise ValueError("Sampling time associated with the system not defined...")  # ToDo: IS this the correct way of having a samping time here?
     if e_net is None: e_net = default_encoder_net
-    if f_net is None: f_net = default_state_net
-    else: print("Make sure that your custom net is of the form as given in 'augmentationstructures.default_state_net'")
+    if f_net is None: f_net = default_CT_state_net
+    else: print("Make sure that your custom net is of the form as given in 'augmentationstructures.default_CT_state_net'")
     if h_net is None: h_net = default_output_net
     else: print("Make sure that your custom net is of the form as given in 'augmentationstructures.default_output_net'")
+    ### TODO: For now have my own RK4 step integrator, Later... have it integrated with deepSI (also include normalization
+    ### TODO: factor and stuff)
+    # calculate the normalization factor for f  TODO: For now set it to zero...
+    # integratornet = integrator_RK4
+
     return deepSI.fit_systems.SS_encoder_general(feedthrough=True, nx=nx_encoder,
             na=y_lag_encoder, nb=u_lag_encoder, e_net=e_net, e_net_kwargs=dict(),
             f_net=f_net, f_net_kwargs=dict(augmentation_params=augmentation_params),
@@ -70,8 +95,9 @@ def get_augmented_fitsys(augmentation_params, y_lag_encoder, u_lag_encoder, e_ne
 ##############         SUB SPACE ENCODER BASED AUGMENTATIONS         ##############
 ##############                  STATIC AUGMENTATION                  ##############
 ###################################################################################
-class SSE_StaticAugmentation:
-    def __init__(self, known_system, wnet, initial_scaling_factor=1e-3, Dzw_is_zero=True):
+class SSE_StaticAugmentation(nn.Module):
+    def __init__(self, nx, nu, ny, known_system, wnet, initial_scaling_factor=1e-3, Dzw_is_zero=True, feedthrough=True):
+        super(SSE_StaticAugmentation, self).__init__()
         # First verify if we have the correct system type and augmentationparameters
         verifySystemType(known_system)
         verifyNetType(wnet, 'static')
@@ -88,6 +114,13 @@ class SSE_StaticAugmentation:
         self.Dzw = None if Dzw_is_zero else nn.Parameter(data=initial_scaling_factor * torch.rand(self.Nz, self.Nw))
         self.Dzu = nn.Parameter(data=initial_scaling_factor * torch.rand(self.Nz, self.Nu))
         self.Dyw = nn.Parameter(data=initial_scaling_factor * torch.rand(self.Ny, self.Nw))
+
+    def initialize_parameters(self, Bw = None, Cz = None, Dzw = None, Dzu = None, Dyw = None):
+        self.Bw.data = assign_param(self.Bw, Bw, 'Bw')
+        self.Cz.data = assign_param(self.Cz, Cz, 'Cz')
+        self.Dzw.data = assign_param(self.Dzw, Dzw, 'Dzw')
+        self.Dzu.data = assign_param(self.Dzu, Dzu, 'Dzu')
+        self.Dyw.data = assign_param(self.Dyw, Dyw, 'Dyw')
 
     def compute_z(self, x, u):
         # in:           | out:
@@ -108,30 +141,24 @@ class SSE_StaticAugmentation:
         #  - w (Nd, Nw)      |  - Bw*w (Nd, Nx)
         return torch.einsum('ij, bj -> bi', self.Bw, w)  # (Nx, Nw)*(Nd, Nw)->(Nd, Nx)
 
-    def f_h(self,x, u):
+    def forward(self,x, u):
         # in:           | out:
-        #  - x (Nd, Nx) |  - x+ (Nd, Nx)
-        #  - u (Nd, Nu) |  - y  (Nd, Ny)
+        #  - x (Nd, Nx) |  - y  (Nd, Ny)
+        #  - u (Nd, Nu) |  - x+ (Nd, Nx)
         # compute network contribution
         z = self.compute_z(x, u)
         w = self.net(z)
-        if self.sys.Ts is not None:
-            x_plus = self.sys.f(x,u) + self.compute_xnet_contribution(w)
-        else:
-            f = lambda x_in, u_in: self.sys.f(x_in, u_in) + self.compute_xnet_contribution(
-                                                            self.net(self.compute_z(x_in, u_in)))
-            x_plus = RK4_step(f, x, u, self.sys.Ts)
+        x_plus = self.sys.f(x,u) + self.compute_xnet_contribution(w)
         y_k    = self.sys.h(x,u) + self.compute_ynet_contribution(w)
-        return x_plus, y_k
-
-
+        return y_k, x_plus
 
 
 ###################################################################################
 ##############                  DYNAMIC AUGMENTATION                 ##############
 ###################################################################################
-class SSE_DynamicAugmentation:
-    def __init__(self, known_system, wnet, initial_scaling_factor=1e-3, Dzw_is_zero=True):
+class SSE_DynamicAugmentation(nn.Module):
+    def __init__(self, nx, nu, ny, known_system, wnet, initial_scaling_factor=1e-3, Dzw_is_zero=True, feedthrough=True):
+        super(SSE_DynamicAugmentation, self).__init__()
         # First verify if we have the correct system type and augmentationparameters
         verifySystemType(known_system)
         verifyNetType(wnet, 'dynamic')
@@ -149,7 +176,14 @@ class SSE_DynamicAugmentation:
         self.Dzw = None if Dzw_is_zero else nn.Parameter(data=initial_scaling_factor * torch.rand(self.Nz, self.Nw))
         self.Dzu = nn.Parameter(data=initial_scaling_factor * torch.rand(self.Nz, self.Nu))
         self.Dyw = nn.Parameter(data=initial_scaling_factor * torch.rand(self.Ny, self.Nw))
+        assert self.Dzw is None, 'No implementation yet for non-zero Dzw'
 
+    def initialize_parameters(self, Bw=None, Cz=None, Dzw=None, Dzu=None, Dyw=None):
+        self.Bw.data = assign_param(self.Bw, Bw, 'Bw')
+        self.Cz.data = assign_param(self.Cz, Cz, 'Cz')
+        self.Dzw.data = assign_param(self.Dzw, Dzw, 'Dzw')
+        self.Dzu.data = assign_param(self.Dzu, Dzu, 'Dzu')
+        self.Dyw.data = assign_param(self.Dyw, Dyw, 'Dyw')
 
     def compute_z(self, x, w, u):
         # in:            | out:
@@ -170,7 +204,7 @@ class SSE_DynamicAugmentation:
         #  - w (Nd, Nw)      |  - Bw*w (Nd, Nx)
         return torch.einsum('ij, bj -> bi', self.Bw, w)  # (Nx, Nw)*(Nd, Nw)->(Nd, Nx)
 
-    def f_h(self,x, u):
+    def forward(self,x, u):
         # in:                 | out:
         #  - x (Nd, Nx + Nxh) |  - x+ (Nd, Nx + Nxh)
         #  - u (Nd, Nu)       |  - y  (Nd, Ny)
@@ -191,7 +225,7 @@ class SSE_DynamicAugmentation:
         x_known_plus = self.sys.f(x_known, u) + self.compute_xnet_contribution(w)
         y_k          = self.sys.h(x_known, u) + self.compute_ynet_contribution(w)
         x_plus = torch.cat((x_known_plus,x_learn_plus), dim=x.ndim-1)
-        return x_plus, y_k
+        return y_k, x_plus
 
 
 

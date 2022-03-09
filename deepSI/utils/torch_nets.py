@@ -1,10 +1,9 @@
 import torch
 from torch import nn, optim
 import numpy as np
+from deepSI.model_augmentation.utils import assign_param
+import time
 from deepSI.model_augmentation.lpvsystem import lti_system
-from deepSI.model_augmentation.utils import RK4_step
-from deepSI.model_augmentation.lpvsystem import lti_system
-from deepSI.model_augmentation.utils import RK4_step
 
 ''' Contracting REN -- DT: '''
 class contracting_REN(nn.Module):
@@ -103,6 +102,16 @@ class LFR_ANN(nn.Module):
         self.Dyu = nn.Parameter(data=initial_gain * torch.rand((self.n_out, self.n_in)))
         self.Dyw = nn.Parameter(data=initial_gain * torch.rand((self.n_out, self.n_neurons)))
         self.Dzu = nn.Parameter(data=initial_gain * torch.rand((self.n_neurons, self.n_in)))
+
+    def initialize_parameters(self, A=None, Bu=None, Bw=None,Cy=None, Cz=None, Dyu=None, Dyw=None, Dzu=None):
+        self.A.data = assign_param(self.A, A, 'A')
+        self.Bu.data = assign_param(self.Bu, Bu, 'Bu')
+        self.Bw.data = assign_param(self.Bw, Bw, 'Bw')
+        self.Cy.data = assign_param(self.Cy, Cy, 'Cy')
+        self.Cz.data = assign_param(self.Cz, Cz, 'Cz')
+        self.Dyu.data = assign_param(self.Dyu, Dyu, 'Dzw')
+        self.Dzu.data = assign_param(self.Dzu, Dzu, 'Dzu')
+        self.Dyw.data = assign_param(self.Dyw, Dyw, 'Dyw')
 
     def forward(self, hidden_state, u):
         # in:         | out:
