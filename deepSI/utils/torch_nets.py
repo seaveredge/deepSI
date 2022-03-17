@@ -102,8 +102,12 @@ class LFR_ANN(nn.Module):
         self.Dyu = nn.Parameter(data=initial_gain * torch.rand((self.n_out, self.n_in)))
         self.Dyw = nn.Parameter(data=initial_gain * torch.rand((self.n_out, self.n_neurons)))
         self.Dzu = nn.Parameter(data=initial_gain * torch.rand((self.n_neurons, self.n_in)))
+        # biasses
+        self.bx = nn.Parameter(data=initial_gain * torch.rand(self.n_state))
+        self.bz = nn.Parameter(data=initial_gain * torch.rand(self.n_neurons))
+        self.by = nn.Parameter(data=initial_gain * torch.rand(self.n_out))
 
-    def initialize_parameters(self, A=None, Bu=None, Bw=None,Cy=None, Cz=None, Dyu=None, Dyw=None, Dzu=None):
+    def initialize_parameters(self, A=None, Bu=None, Bw=None,Cy=None, Cz=None, Dyu=None, Dyw=None, Dzu=None, bx=None, bz=None, by=None):
         self.A.data = assign_param(self.A, A, 'A')
         self.Bu.data = assign_param(self.Bu, Bu, 'Bu')
         self.Bw.data = assign_param(self.Bw, Bw, 'Bw')
@@ -112,30 +116,33 @@ class LFR_ANN(nn.Module):
         self.Dyu.data = assign_param(self.Dyu, Dyu, 'Dzw')
         self.Dzu.data = assign_param(self.Dzu, Dzu, 'Dzu')
         self.Dyw.data = assign_param(self.Dyw, Dyw, 'Dyw')
+        self.bx.data = assign_param(self.bx, bx, 'bx')
+        self.bz.data = assign_param(self.bz, bz, 'bz')
+        self.by.data = assign_param(self.by, by, 'by')
 
     def forward(self, hidden_state, u):
         # in:         | out:
         # - x (Nd, Nxh)
         # - u (Nd, Nu)
-        z = torch.einsum('ij, bj->bi',self.Cz, hidden_state) + torch.einsum('ij, bj->bi',self.Dzu, u)
+        z = torch.einsum('ij, bj->bi',self.Cz, hidden_state) + torch.einsum('ij, bj->bi',self.Dzu, u) + self.bz
         w = self.activation(z)
-        xp = torch.einsum('ij, bj->bi', self.A, hidden_state) + torch.einsum('ij, bj->bi', self.Bu, u) + torch.einsum('ij, bj->bi', self.Bw, w)
-        y = torch.einsum('ij, bj->bi', self.Cy, hidden_state) + torch.einsum('ij, bj->bi', self.Dyu, u) + torch.einsum('ij, bj->bi', self.Dyw, w)
+        xp = torch.einsum('ij, bj->bi', self.A, hidden_state) + torch.einsum('ij, bj->bi', self.Bu, u) + torch.einsum('ij, bj->bi', self.Bw, w) + self.bx
+        y = torch.einsum('ij, bj->bi', self.Cy, hidden_state) + torch.einsum('ij, bj->bi', self.Dyu, u) + torch.einsum('ij, bj->bi', self.Dyw, w) + self.by
         return xp, y
 
     def get_LTI_sys(self, Ts=-1):
-        A = self.A.detach()
-        Bu = self.Bu.detach()
-        Bw = self.Bw.detach()
-        Cy = self.Cy.detach()
-        Cz = self.Cz.detach()
-        Dyu = self.Dyu.detach()
-        Dyw = self.Dyw.detach()
-        Dzu = self.Dzu.detach()
+        A = self.A.data
+        Bu = self.Bu.data
+        Bw = self.Bw.data
+        Cy = self.Cy.data
+        Cz = self.Cz.data
+        Dyu = self.Dyu.data
+        Dyw = self.Dyw.data
+        Dzu = self.Dzu.data
         Dzw = torch.zeros((self.n_neurons,self.n_neurons))
         Dz = torch.cat((Dzu, Dzw), dim=1)
         Dy = torch.cat((Dyu, Dyw), dim=1)
-        return lti_system(A=A, B=torch.cat((Bu, Bw),dim=1), C=torch.cat((Cy, Cz)), D=torch.cat((Dz,Dy)), Ts=Ts), self.n_neurons
+        return lti_system(A=A, B=torch.cat((Bu, Bw),dim=1), C=torch.cat((Cy, Cz)), D=torch.cat((Dz,Dy)), Ts=Ts), self.n_neurons, torch.cat((self.bx.data, self.bz.data, self.by.data))
 
 
 
