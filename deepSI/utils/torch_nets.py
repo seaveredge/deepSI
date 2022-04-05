@@ -7,14 +7,14 @@ from deepSI.model_augmentation.lpvsystem import lti_system
 
 ''' Contracting REN -- DT: '''
 class contracting_REN(nn.Module):
-    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh):
+    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activation=nn.Tanh):
         super(contracting_REN, self).__init__()
         assert n_state > 0
         self.n_in       = n_in
         self.n_state    = n_state
         self.n_out      = n_out
         self.n_neurons  = n_neurons
-        self.activation = activationfunction()
+        self.activation = activation()
         # Use the convex parametrization of Revay (2021) - Recurrent Equilibrium Networks, Flexible Dynamic Models with Guaranteed Stability and Robustness
         # Parameters: (see sec. V.A)
         self.X          = nn.Parameter(data=torch.rand((2*self.n_state+self.n_neurons,2*self.n_state+self.n_neurons)))
@@ -85,14 +85,14 @@ class contracting_REN(nn.Module):
 
 ''' LFR-ANN -- DT/CT: '''
 class LFR_ANN(nn.Module):
-    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activationfunction=nn.Tanh, initial_gain=1e-3):
+    def __init__(self, n_in=6, n_state = 8, n_out=5, n_neurons=64, activation=nn.Tanh, initial_gain=1e-3):
         super(LFR_ANN, self).__init__()
         assert n_state > 0
         self.n_in = n_in
         self.n_state = n_state
         self.n_out = n_out
         self.n_neurons = n_neurons
-        self.activation = activationfunction()
+        self.activation = activation()
         # LFR-ANN matrices for the LTI part. The feedthrough between w and z is assumed to be zero
         self.A = nn.Parameter(data=initial_gain * torch.rand((self.n_state, self.n_state)))
         self.Bu = nn.Parameter(data=initial_gain * torch.rand((self.n_state, self.n_in)))
@@ -173,7 +173,7 @@ class simple_res_net(nn.Module):
         self.n_in = n_in
         self.n_out = n_out
         if n_hidden_layers>0:
-            self.net_non_lin = feed_forward_nn(n_in,n_out,n_nodes_per_layer=n_nodes_per_layer,n_hidden_layers=n_hidden_layers,activation=activation)
+            self.net_non_lin = feed_forward_nn(n_in, n_out, n_nodes_per_layer=n_nodes_per_layer, n_hidden_layers=n_hidden_layers,activation=activation)
         else:
             self.net_non_lin = None
 
