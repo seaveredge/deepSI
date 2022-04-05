@@ -210,3 +210,30 @@ class lti_system:
         if x0 is None:
             x0 = torch.zeros(self.Nx)
         return hidden_apply_experiment(self, data, x0)
+
+class lti_affine_system(lti_system):
+    def __init__(self, A, B, C, D, f0, h0, Ts=-1):
+        super(lti_affine_system, self).__init__(A=A, B=B, C=C, D=D, Ts=-1)
+        self.f0 = f0 if torch.is_tensor(f0) else torch.tensor(f0, dtype=torch.float)  # shape: (Nx,)
+        self.h0 = h0 if torch.is_tensor(h0) else torch.tensor(h0, dtype=torch.float)  # shape: (Ny,)
+        assert not (f0.abs() < 1E-10).all(), 'Just use an LTI system, f0 is practically zero...'
+        assert f0.shape[0] == self.Nx, 'f0 should be of shape (Nx,)'
+        assert h0.shape[0] == self.Ny, 'h0 should be of shape (Ny,)'
+
+    def f(self, x, u):
+        # in:           | out:
+        #  - x (Nd, Nx) |  - x+ (Nd, Nx)
+        #  - u (Nd, Nu) |
+        einsumequation = 'ik, bk->bi' if x.ndim > 1 else 'ik, k->i'
+        Ax = torch.einsum(einsumequation, self.A, x) # (Nx, Nx)*(Nd, Nx)->(Nd, Nx)
+        Bu = torch.einsum(einsumequation, self.B, u)   # (Nd, Nx, Nu)*(Nd, Nu)->(Nd, Nx)
+        return Ax + Bu + self.f0
+
+    def h(self,x, u):
+        # in:           | out:
+        #  - x (Nd, Nx) |  - y (Nd, Ny)
+        #  - u (Nd, Nu) |
+        einsumequation = 'ik, bk->bi' if x.ndim > 1 else 'ik, k->i'
+        Cx = torch.einsum(einsumequation, self.C, x)  # (Nd, Nx, Nx)*(Nd, Nx)->(Nd, Nx)
+        Du = torch.einsum(einsumequation, self.D, u)  # (Nd, Nx, Nu)*(Nd, Nu)->(Nd, Nx)
+        return Cx + Du + self.h0
