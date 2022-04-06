@@ -214,11 +214,13 @@ class lti_system:
 class lti_affine_system(lti_system):
     def __init__(self, A, B, C, D, f0, h0, Ts=-1):
         super(lti_affine_system, self).__init__(A=A, B=B, C=C, D=D, Ts=-1)
-        self.f0 = f0 if torch.is_tensor(f0) else torch.tensor(f0, dtype=torch.float)  # shape: (Nx,)
-        self.h0 = h0 if torch.is_tensor(h0) else torch.tensor(h0, dtype=torch.float)  # shape: (Ny,)
-        assert not (f0.abs() < 1E-10).all(), 'Just use an LTI system, f0 is practically zero...'
-        assert f0.shape[0] == self.Nx, 'f0 should be of shape (Nx,)'
-        assert h0.shape[0] == self.Ny, 'h0 should be of shape (Ny,)'
+        f_0 = f0 if torch.is_tensor(f0) else torch.tensor(f0, dtype=torch.float)  # shape: (Nx,)
+        h_0 = h0 if torch.is_tensor(h0) else torch.tensor(h0, dtype=torch.float)  # shape: (Ny,)
+        assert not (f_0.abs() < 1E-10).all(), 'Just use an LTI system, f0 is practically zero...'
+        self.f0 = f_0.reshape((1, -1))
+        self.h0 = h_0.reshape((1, -1))
+        assert self.f0.shape[1] == self.Nx, 'f0 should be of shape (1,Nx)'
+        assert self.h0.shape[1] == self.Ny, 'h0 should be of shape (1,Ny)'
 
     def f(self, x, u):
         # in:           | out:
