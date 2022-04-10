@@ -181,7 +181,7 @@ class SSE_DynamicAugmentation(nn.Module):
     def initialize_parameters(self, Bw=None, Cz=None, Dzw=None, Dzu=None, Dyw=None):
         self.Bw.data = assign_param(self.Bw, Bw, 'Bw')
         self.Cz.data = assign_param(self.Cz, Cz, 'Cz')
-        self.Dzw.data = assign_param(self.Dzw, Dzw, 'Dzw')
+        #self.Dzw.data = assign_param(self.Dzw, Dzw, 'Dzw')
         self.Dzu.data = assign_param(self.Dzu, Dzu, 'Dzu')
         self.Dyw.data = assign_param(self.Dyw, Dyw, 'Dyw')
 
