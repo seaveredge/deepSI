@@ -14,13 +14,17 @@ def simple_res_net_2_LFR(net):
     Dzu = torch.cat((seq[0].weight.data ,torch.zeros(((nr_layers-1)*Nh, Nu))),dim=0)
     Dyw = torch.cat((torch.zeros((Ny, (nr_layers - 1) * Nh)), seq[-1].weight.data), dim=1)
     Dyu = net.net_lin.weight.data
-    if nr_layers == 1: Dzw = torch.zeros((Nh,Nh))
+    by  = net.net_lin.bias.data + seq[-1].bias.data
+    bz = seq[0].bias.data
+    if nr_layers == 1:
+        Dzw = torch.zeros((Nh,Nh))
     else:
         Dzw = torch.zeros((Nh, nr_layers * Nh))
         for i in range(1,nr_layers):
             Dzw_row = torch.cat((torch.zeros((Nh, (i - 1) * Nh)), seq[2 * i].weight.data, torch.zeros((Nh, Nh*(nr_layers - i)))), dim=1)
             Dzw = torch.cat((Dzw, Dzw_row))
-    return Dzw, Dzu, Dyw, Dyu
+            bz  = torch.cat((bz, seq[2 * i].bias.data))
+    return Dzw, Dzu, Dyw, Dyu, bz, by
 
 # Allowed systems:
 def verifySystemType(sys):
