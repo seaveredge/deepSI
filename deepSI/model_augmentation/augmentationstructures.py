@@ -45,7 +45,8 @@ class default_output_net(nn.Module):
         #  - u (Nd, Nu + np) |
         return self.MApar.f_h(x,u)[1] # Select h(x,u) function
 
-def get_augmented_fitsys(augmentation_structure, known_system, wnet, aug_kwargs={}, e_net=default_encoder_net, y_lag_encoder=None, u_lag_encoder=None, enet_kwargs={}):
+def get_augmented_fitsys(augmentation_structure, known_system, wnet, aug_kwargs={}, e_net=default_encoder_net,
+                         y_lag_encoder=None, u_lag_encoder=None, enet_kwargs={}, na_right=0, nb_right=0):
     if augmentation_structure is model_augmentation.augmentationstructures.SSE_DynamicAugmentation:
         # Learn the state of the augmented model as well
         nx_system = known_system.Nx
@@ -60,7 +61,8 @@ def get_augmented_fitsys(augmentation_structure, known_system, wnet, aug_kwargs=
     if e_net is None: raise ValueError("Encoder net (e_net) must be defined")
     return deepSI.fit_systems.SS_encoder_general_hf(feedthrough=True, nx=nx_encoder, na=y_lag_encoder, nb=u_lag_encoder,
                                                     e_net=e_net, e_net_kwargs=dict(**enet_kwargs), hf_net=augmentation_structure,
-                                                    hf_net_kwargs=dict(known_system=known_system, wnet=wnet, **aug_kwargs))
+                                                    hf_net_kwargs=dict(known_system=known_system, wnet=wnet, **aug_kwargs),
+                                                    na_right=na_right, nb_right=nb_right)
 
 def get_CT_augmented_fitsys(augmentation_params, y_lag_encoder, u_lag_encoder, e_net=None, f_net=None, h_net=None):
     raise NotImplementedError('Not verified or tested or whatevered yet...')
