@@ -33,6 +33,7 @@ def verifySystemType(sys):
     elif type(sys)          is model_augmentation.lpvsystem.lti_system:     return
     elif type(sys)          is model_augmentation.lpvsystem.lti_affine_system: return
     elif type(sys).__base__ is model_augmentation.lpvsystem.lti_affine_system: return
+    elif type(sys).__base__ is model_augmentation.lpvsystem.general_nonlinear_system: return
     else: raise ValueError("Systems must be of the types defined in 'model_augmentation.lpvsystem'")
 
 def verifyNetType(net,nettype):

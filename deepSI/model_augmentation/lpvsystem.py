@@ -239,3 +239,29 @@ class lti_affine_system(lti_system):
         Cx = torch.einsum(einsumequation, self.C, x)  # (Nd, Nx, Nx)*(Nd, Nx)->(Nd, Nx)
         Du = torch.einsum(einsumequation, self.D, u)  # (Nd, Nx, Nu)*(Nd, Nu)->(Nd, Nx)
         return Cx + Du + self.h0
+
+class general_nonlinear_system:
+    def __init__(self, nu, nx, ny, Ts=-1):
+        # This system must be able to process the inputs and outputs for the subspace encoder,
+        # hence: shape({x,u,y,p}) = (Nd,{nx,nu,ny,np})
+        self.Nu = nu
+        self.Nx = nx
+        self.Ny = ny
+        self.Ts = Ts
+
+    def f(self, x, u):
+        # in:                   | out:
+        #     x (Nd,Nx)         |      x+ (Nd,Nx)
+        #     u (Nd,Nu)  |
+        raise NotImplementedError('Scheduling function should be implemented in child')
+
+    def h(self, x, u):
+        # in:                   | out:
+        #     x (Nd,Nx)         |      y (Nd,Ny)
+        #     u (Nd,Nu)  |
+        raise NotImplementedError('Scheduling function should be implemented in child')
+
+    def apply_experiment(self, data, x0=None):
+        if x0 is None:
+            x0 = torch.zeros(self.Nx)
+        return hidden_apply_experiment(self, data, x0)
