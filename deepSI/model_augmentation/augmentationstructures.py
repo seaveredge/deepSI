@@ -97,6 +97,12 @@ def get_CT_augmented_fitsys(augmentation_params, y_lag_encoder, u_lag_encoder, e
 ##############         SUB SPACE ENCODER BASED AUGMENTATIONS         ##############
 ##############                  STATIC AUGMENTATION                  ##############
 ###################################################################################
+
+class SSE_Augmentation(nn.Module):  # TODO: Make generic class
+    def __init__(self):
+        super(SSE_Augmentation, self).__init__()
+        pass
+
 class SSE_StaticAugmentation(nn.Module):
     def __init__(self, nx, nu, ny, known_system, wnet, initial_scaling_factor=1e-3, Dzw_is_zero=True, feedthrough=True):
         super(SSE_StaticAugmentation, self).__init__()

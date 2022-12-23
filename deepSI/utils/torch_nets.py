@@ -144,6 +144,9 @@ class LFR_ANN(nn.Module):
         Dy = torch.cat((Dyu, Dyw), dim=1)
         return lti_system(A=A, B=torch.cat((Bu, Bw),dim=1), C=torch.cat((Cy, Cz)), D=torch.cat((Dz,Dy)), Ts=Ts), self.n_neurons, torch.cat((self.bx.data, self.bz.data, self.by.data))
 
+# class LFR_ANN_CT(LFR_ANN):
+#     def __init__(self, nu=6, nx = 8, ny=5, n_neurons=64, activationfunction=nn.Tanh, x0 = None, initial_gain=1e-3):
+#         super(LFR_ANN_CT, self).__init__(nu=nu, nx=nx, ny=ny, n_neurons=n_neurons, activationfunction=activationfunction, x0=x0))
 
 
 class feed_forward_nn(nn.Module): #a simple MLP
